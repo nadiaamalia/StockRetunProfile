@@ -1,0 +1,110 @@
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import statsmodels.api as sm
+from sklearn.metrics import mean_squared_error
+
+#import data from dataset
+Fama = pd.read_csv('/Users/nadiaamalia/Downloads/F-F_Research_Data_Factors.CSV',
+                   header = 0, 
+                   parse_dates=True,
+                   names=['Date', 'Mkt-RF', 'SMB', 'HML', 'RF'])
+
+
+dataframe = pd.DataFrame(Fama)
+type(dataframe.Date[0])
+
+# A. create time series for full data
+
+Premium = Fama['Mkt-RF']
+print(Premium.head())
+Histogram = Premium.hist()
+Histogram.set(title='Histogram', 
+            ylabel='Data', 
+            xlabel='Rate(bps)')
+
+#B. Predict mean excess return to be in the month of 01/2014
+
+data1 = dataframe.loc[1:1051]
+Mkt_Ret1 = data1['Mkt-RF']
+mean_1 = np.mean(Mkt_Ret1)
+print ('Excess Return in January 2014:', mean_1)
+
+#C. One-month ahead predictions of market excess returns for the period of 01/2014 to 12/2019 
+
+
+moving_avg = Fama.iloc[2:1124,1].rolling(window=len(Fama.iloc[2:1124,1]), min_periods=1051).mean()
+MA = moving_avg.dropna()
+Realized_ER = dataframe.iloc[1052:1124,1]
+
+plt.plot(MA, 'b-', label='MA')
+plt.plot(Realized_ER, 'b-', label='Realized')
+
+plt.legend(loc='upper left')
+plt.xlabel('Month')
+plt.ylabel('Rate')
+MSE_outsample1 = mean_squared_error(MA , Realized_ER)
+print ('MSE for outsample using the first model:', MSE_outsample1)
+
+#D. Using OLS, estimate the predictive model above for the training sample – from 07/1926 to 12/2013
+
+Forward_Mkt_Ret1 = Mkt_Ret1.shift(+1)
+Mkt_Ret1 = sm.add_constant(Mkt_Ret1)
+model = sm.OLS(Forward_Mkt_Ret1,Mkt_Ret1, missing = 'drop').fit()
+model_prediction = model.predict()
+model_details = model.summary()
+print(model_details)
+
+
+#E. Excess return from OLS model prediction
+a = model.params
+a0 = a[0]
+a1 = a[1]
+
+Predict =  dataframe.iloc[1051:1121,1]O
+Outsample_predict = a0 + a1*Predict
+Realized_Outsample =  dataframe.iloc[1052:1123,1]
+
+
+plt.plot(Outsample_predict, 'b-', label='Out-of-sample Prediction')
+plt.plot(Realized_Outsample, 'b-', label='Out-of-sample Realized')
+
+plt.legend(loc='upper left')
+plt.xlabel('Month')
+plt.ylabel('Rate')
+MSE_outsample2 = mean_squared_error(Outsample_predict , Realized_Outsample)
+print ('MSE for outsample using the second model:', MSE_outsample2)
+
+
+#F 
+
+#G. in-sample MSEs for two models
+
+#in-sample MSE for first model
+
+In_sample_MA = Fama['Mkt-RF'].rolling(window=len(Fama['Mkt-RF']), min_periods=0).mean()
+In_sample_MA = In_sample_MA.dropna()
+In_sample_Realized = dataframe.iloc[0:1122,1]
+
+MSE_insample1 = mean_squared_error(In_sample_MA , In_sample_Realized)
+print ('MSE for insample using the first model:', MSE_insample1)
+
+#in-sample MSE for second model
+
+Forward_insample = Premium.shift(+1)
+In_sample_Realized = sm.add_constant(In_sample_Realized)
+Model_insample = sm.OLS(Forward_insample,In_sample_Realized, missing = 'drop').fit()
+Model_insampleprediction = Model_insample.predict()
+
+B = model.params
+b1 = B[0]
+b2 = B[1]
+
+InSample_Data =  dataframe.iloc[0:1123,1]
+InSample_Model = b1 + b2*InSample_Data
+
+Realized_Insample = InSample_Model.loc[1052:1122]
+
+MSE_insample2 = mean_squared_error(Realized_Insample , Realized_ER)
+print ('MSE for insample using the second model:', MSE_insample2)
